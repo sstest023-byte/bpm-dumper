@@ -22,7 +22,7 @@ namespace dumper
 	dump_status status = dump_status::NONE;
 	Il2CppDomain* domain = nullptr;
 	std::string dump_dir = "";
-
+	int typeDefIndex = 0;
 	std::once_flag flag;
 
 	std::filesystem::path get_desktop_path( )
@@ -30,7 +30,7 @@ namespace dumper
 		wchar_t* p;
 		if ( S_OK != SHGetKnownFolderPath( FOLDERID_Desktop, 0, NULL, &p ) ) return "";
 		std::filesystem::path result = p;
-		CoTaskMemFree( p );
+		CoTaskMemFree( p ); 
 		return result;
 	}
 
@@ -149,15 +149,24 @@ namespace dumper
 		size_t size_of_assemblies;
 		Il2CppAssembly** assemblies = il2cpp::domain_get_assemblies( domain, &size_of_assemblies );
 
-		for ( size_t i{ 0 }; i < size_of_assemblies; i++ )
+		for (size_t i{ 0 }; i < size_of_assemblies; i++)
 		{
-			Il2CppAssembly* assembly = assemblies[ i ];
-			if ( !assembly )
+			Il2CppAssembly* assembly = assemblies[i];
+			if (!assembly)
 				continue;
-			strstream << "// Image " << i << ": " << assembly->image->name << std::endl;
-		}
-		strstream << std::endl;
 
+			Il2CppImage* image = assembly->image;
+			if (!image)
+				continue;
+
+			static int class_count_all = 0;
+
+			strstream << "// Image " << i << ": " << image->name << " - " << class_count_all << std::endl;
+			class_count_all += il2cpp::image_get_class_count(image);
+		}
+
+		strstream << std::endl;
+		
 		for ( size_t i{ 0 }; i < size_of_assemblies; i++ )
 		{
 			Il2CppAssembly* assembly = assemblies[ i ];
@@ -223,7 +232,15 @@ namespace dumper
 					strstream << "class ";
 				}
 
-				strstream << klass->name << " " << std::string(parent ? ( std::string(": ") + parent->name ) : "" ) << std::endl;
+				
+				strstream << klass->name
+					<< " "
+					<< std::string(parent ? (std::string(": ") + parent->name) : "")
+					<< " // TypeDefIndex: " << typeDefIndex
+					<< std::endl;
+
+				typeDefIndex += 1;
+
 				strstream << "{" << std::endl;
 				strstream << "\t//fields" << std::endl;
 				void* iter = nullptr;
