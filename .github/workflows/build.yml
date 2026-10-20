@@ -1,1 +1,34 @@
+name: build-dll
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
 
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build (Release x64)
+        shell: pwsh
+        run: |
+          $sln = Get-ChildItem -Recurse -Filter *.sln | Select-Object -First 1
+          if (-not $sln) { $proj = Get-ChildItem -Recurse -Filter *.vcxproj | Select-Object -First 1; $target = $proj.FullName } else { $target = $sln.FullName }
+          Write-Host "building $target"
+          msbuild $target /p:Configuration=Release /p:Platform=x64 /m /verbosity:minimal
+
+      - name: Collect dll
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Get-ChildItem -Recurse -Filter *.dll | Where-Object { $_.FullName -match 'x64[\\/]Release' } | Copy-Item -Destination out
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dumper-dll
+          path: out/*.dll
+          if-no-files-found: error
